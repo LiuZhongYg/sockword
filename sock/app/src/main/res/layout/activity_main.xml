@@ -8,6 +8,7 @@
     android:orientation="vertical"
     tools:context="com.example.lzy.sock.MainActivity">
     <TextView
+        android:id="@+id/lockClock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="19:22"
@@ -17,6 +18,7 @@
         android:layout_marginTop="40dp"
         />
     <TextView
+        android:id="@+id/lockDate"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="2020/2/7 星期四"
