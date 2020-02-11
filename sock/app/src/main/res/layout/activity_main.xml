@@ -30,6 +30,7 @@
         android:layout_height="75dp"
         android:layout_marginTop="20dp">
         <TextView
+            android:id="@+id/mWord"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Parent"
@@ -37,6 +38,7 @@
             android:textSize="40dp"
             android:layout_centerHorizontal="true"/>
         <ImageView
+            android:id="@+id/play_voice"
             android:layout_width="27dp"
             android:layout_height="27dp"
             android:src="@mipmap/vioce"
@@ -45,6 +47,7 @@
             android:layout_marginRight="90dp"/>
     </RelativeLayout>
     <TextView
+        android:id="@+id/phonetic_symbols"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Parent"
@@ -52,34 +55,39 @@
         android:gravity="center_horizontal"
         android:textSize="20dp"/>
     <RadioGroup
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp">
+        android:layout_marginTop="20dp"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical">
         <RadioButton
+            android:id="@+id/option_A"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="A. 父母"
             android:button="@null"
             android:textColor="@android:color/white"
-            android:layout_gravity="center_horizontal"
+
             android:textSize="25dp"/>
         <RadioButton
+            android:id="@+id/option_B"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:text="B. 兄弟"
             android:button="@null"
             android:textColor="@android:color/white"
-            android:layout_gravity="center_horizontal"
+
             android:textSize="25dp"/>
         <RadioButton
+            android:id="@+id/option_C"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:text="C. 姐妹"
             android:button="@null"
             android:textColor="@android:color/white"
-            android:layout_gravity="center_horizontal"
+
             android:textSize="25dp"/>
     </RadioGroup>
 </LinearLayout>
