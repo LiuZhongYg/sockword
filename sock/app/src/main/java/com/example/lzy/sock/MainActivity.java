@@ -6,9 +6,12 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
+import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -20,13 +23,21 @@ import com.example.lzy.greendao.entity.greendao.CET4Entity;
 import com.example.lzy.greendao.entity.greendao.CET4EntityDao;
 import com.example.lzy.greendao.entity.greendao.DaoMaster;
 import com.example.lzy.greendao.entity.greendao.DaoSession;
+import com.iflytek.cloud.ErrorCode;
+import com.iflytek.cloud.InitListener;
+import com.iflytek.cloud.SpeechConstant;
+import com.iflytek.cloud.SpeechError;
+import com.iflytek.cloud.SpeechSynthesizer;
+import com.iflytek.cloud.SpeechUtility;
+import com.iflytek.cloud.SynthesizerListener;
+
 
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements SynthesizerListener,View.OnClickListener {
     private final static int MSG_ONE = 1;
     private TextView lockClock, lockDate;
     private TextView mWord, phonetic_symbols;
@@ -36,7 +47,7 @@ public class MainActivity extends Activity {
     private DaoSession mDaoSession, dbSession;
     private CET4EntityDao questionDao, dbDao;
     private SQLiteDatabase db;
-
+    private SpeechSynthesizer mTts;
     List<CET4Entity> datas;
     List<Integer> list;
     private int j = 0;
@@ -97,11 +108,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        SpeechUtility.createUtility(MainActivity.this, SpeechConstant.APPID +"=5e40182c");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
 
         //setParam();
         init();
+        setPara();
         new TimeThread().start();
 
     }
@@ -109,7 +121,17 @@ public class MainActivity extends Activity {
     public void init() {
         //SpeechUser.getUser().login(MainActivity.this, null, null, "appid=5e40182c", listener);
         //SpeechUtility.createUtility(this, "appid=5e40182c");
+        mTts = SpeechSynthesizer.createSynthesizer(getApplicationContext(), new InitListener() {
+            @Override
+            public void onInit(int code) {
+                if (code != ErrorCode.SUCCESS) {
+                    Log.d("fjj", "初始化失败,错误码：" + code);
+                }
+                Log.d("fjj", "初始化失败,q错误码：" + code);
+            }
+        });//这里的上下文可能不对
         playVoice = findViewById(R.id.play_voice);
+        playVoice.setOnClickListener(this);
         lockClock = findViewById(R.id.lockClock);
         lockDate = findViewById(R.id.lockDate);
         mWord = findViewById(R.id.mWord);
@@ -143,10 +165,49 @@ public class MainActivity extends Activity {
         //playVoice.setOnClickListener(this);
     }
 
+
     @Override
-    protected void onStart() {
-        super.onStart();
-        getDBData();
+    public void onClick(View view) {
+        switch (view.getId()){
+            case R.id.play_voice:
+                mTts.startSpeaking(mWord.getText().toString(), this);
+                break;
+        }
+    }
+
+    @Override
+    public void onSpeakBegin() {
+
+    }
+
+    @Override
+    public void onBufferProgress(int i, int i1, int i2, String s) {
+
+    }
+
+    @Override
+    public void onSpeakPaused() {
+
+    }
+
+    @Override
+    public void onSpeakResumed() {
+
+    }
+
+    @Override
+    public void onSpeakProgress(int i, int i1, int i2) {
+
+    }
+
+    @Override
+    public void onCompleted(SpeechError speechError) {
+
+    }
+
+    @Override
+    public void onEvent(int i, int i1, int i2, Bundle bundle) {
+
     }
 
    /* @Override
@@ -227,5 +288,23 @@ public class MainActivity extends Activity {
             }
         }
     }
-
+    public void setPara(){
+        // 清空参数
+        mTts.setParameter(SpeechConstant.PARAMS, null);
+        // 引擎类型 网络
+        mTts.setParameter(SpeechConstant.ENGINE_TYPE, SpeechConstant.TYPE_CLOUD);
+        // 设置发音人
+        mTts.setParameter(SpeechConstant.VOICE_NAME, "xiaoyan");
+        // 设置语速
+        mTts.setParameter(SpeechConstant.SPEED, "50");
+        // 设置音调
+        mTts.setParameter(SpeechConstant.PITCH, "50");
+        // 设置音量
+        mTts.setParameter(SpeechConstant.VOLUME, "100");
+        // 设置播放器音频流类型
+        mTts.setParameter(SpeechConstant.STREAM_TYPE, "3");
+        // mTts.setParameter(SpeechConstant.TTS_AUDIO_PATH, Environment.getExternalStorageDirectory() + "/KRobot/wavaudio.pcm");
+        // 背景音乐  1有 0 无
+        // mTts.setParameter("bgs", "1");
+    }
 }
