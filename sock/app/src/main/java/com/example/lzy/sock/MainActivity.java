@@ -4,7 +4,9 @@ import android.app.Activity;
 
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -12,10 +14,12 @@ import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 
 import com.example.assetsbasedata.AssetsDatabaseManager;
@@ -37,7 +41,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 
-public class MainActivity extends Activity implements SynthesizerListener,View.OnClickListener {
+public class MainActivity extends Activity implements SynthesizerListener,View.OnClickListener,RadioGroup.OnCheckedChangeListener,InitListener {
     private final static int MSG_ONE = 1;
     private TextView lockClock, lockDate;
     private TextView mWord, phonetic_symbols;
@@ -49,10 +53,21 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
     private SQLiteDatabase db;
     private SpeechSynthesizer mTts;
     List<CET4Entity> datas;
-    List<Integer> list;
-    private int j = 0;
-
+    List<Integer> showOrder;
+    private int currentNumber;
     private ImageView playVoice;
+    private RadioGroup radioGroup;
+    private SharedPreferences sharedPreferences;
+    private SharedPreferences.Editor editor;
+
+    /**
+     * (x1,y1)按下时的坐标
+     *（x2,y2）抬手时的坐标
+     */
+    float x1=0;
+    float y1=0;
+    float x2=0;
+    float y2=0;
 
     private Handler handler = new Handler() {
         @Override
@@ -110,28 +125,17 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
         setContentView(R.layout.activity_main);
         SpeechUtility.createUtility(MainActivity.this, SpeechConstant.APPID +"=5e40182c");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-
-        //setParam();
         init();
-        setPara();
         new TimeThread().start();
-
+        //显示第一个单词
+        setWord(currentNumber);
+        setOption(datas);
     }
 
     public void init() {
-        //SpeechUser.getUser().login(MainActivity.this, null, null, "appid=5e40182c", listener);
-        //SpeechUtility.createUtility(this, "appid=5e40182c");
-        mTts = SpeechSynthesizer.createSynthesizer(getApplicationContext(), new InitListener() {
-            @Override
-            public void onInit(int code) {
-                if (code != ErrorCode.SUCCESS) {
-                    Log.d("fjj", "初始化失败,错误码：" + code);
-                }
-                Log.d("fjj", "初始化失败,q错误码：" + code);
-            }
-        });//这里的上下文可能不对
+
+        //初始化控件
         playVoice = findViewById(R.id.play_voice);
-        playVoice.setOnClickListener(this);
         lockClock = findViewById(R.id.lockClock);
         lockDate = findViewById(R.id.lockDate);
         mWord = findViewById(R.id.mWord);
@@ -139,6 +143,13 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
         option_A = findViewById(R.id.option_A);
         option_B = findViewById(R.id.option_B);
         option_C = findViewById(R.id.option_C);
+        radioGroup=findViewById(R.id.radio_Group);
+
+        //设置监听
+        playVoice.setOnClickListener(this);
+        radioGroup.setOnCheckedChangeListener(this);
+
+        //初始化数据库
         AssetsDatabaseManager.initManager(this);
         AssetsDatabaseManager mg = AssetsDatabaseManager.getManager();
         //单词数据库
@@ -146,23 +157,34 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
         mDaoMaster = new DaoMaster(db1);
         mDaoSession = mDaoMaster.newSession();
         questionDao = mDaoSession.getCET4EntityDao();
-
         //创建错题库
         DaoMaster.DevOpenHelper helper = new DaoMaster.DevOpenHelper(this, "wrong.db", null);
         db = helper.getWritableDatabase();
         dbMaster = new DaoMaster(db);
         dbSession = dbMaster.newSession();
         dbDao = dbSession.getCET4EntityDao();
-        list = new ArrayList<Integer>();
+
+        //初始化轻量级数据库
+        sharedPreferences=getSharedPreferences("share",Context.MODE_PRIVATE);
+        editor = sharedPreferences.edit();
+        //科大讯飞在线语音合成
+        mTts = SpeechSynthesizer.createSynthesizer(getApplicationContext(),this);
+        //设置科大讯飞参数
+        setPara();
+
+
+        //单词显示顺序
+        showOrder = new ArrayList<Integer>();
         Random r = new Random();
         int i;
-        while (list.size() < 10) {
+        while (showOrder.size() < 10) {
             i = r.nextInt(20);
-            while (!list.contains(i)) {
-                list.add(i);
+            while (!showOrder.contains(i)) {
+                showOrder.add(i);
             }
         }
-        //playVoice.setOnClickListener(this);
+        currentNumber=0;
+        datas = questionDao.queryBuilder().list();
     }
 
 
@@ -171,6 +193,7 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
         switch (view.getId()){
             case R.id.play_voice:
                 mTts.startSpeaking(mWord.getText().toString(), this);
+                Log.e("onClick",".........................");
                 break;
         }
     }
@@ -210,18 +233,76 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
 
     }
 
-   /* @Override
-    public void onClick(View view) {
-        switch (view.getId()) {
-            case R.id.play_voice:
-                String text = mWord.getText().toString();
-                //speechSynthesizer.startSpeaking(text, this);          //讯飞 播放声音
+    @Override
+    public void onCheckedChanged(RadioGroup radioGroup, int i) {
+        //radioGroup.setClickable(false);
+        Log.e("before switch",".........");
+        switch (i){
+            case R.id.option_A:
+                String msg=option_A.getText().toString().substring(2);
+                judgeAnswer(msg,option_A);
+                Log.e("选择了A",".........");
+                break;
+            case R.id.option_B:
+                String msg1=option_B.getText().toString().substring(2);
+                judgeAnswer(msg1,option_B);
+                Log.e("选择了A",".........");
+                break;
+            case R.id.option_C:
+                String msg2=option_C.getText().toString().substring(2);
+                judgeAnswer(msg2,option_C);
+                Log.e("选择了A",".........");
                 break;
         }
     }
-*/
+    @Override
+    public void onInit(int code) {
+        if (code != ErrorCode.SUCCESS) {
+            Log.d("fjj", "初始化失败,错误码：" + code);
+        }
+        Log.d("fjj", "初始化失败,q错误码：" + code);
+    }
 
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if(event.getAction()==MotionEvent.ACTION_DOWN){
+            x1=event.getX();
+            y1=event.getY();
+        }else if(event.getAction()==MotionEvent.ACTION_UP){
+            x2=event.getX();
+            y2=event.getY();
+            if(y2-y1>200){
 
+            }
+        }
+        return super.onTouchEvent(event);
+    }
+
+    public void judgeAnswer(String msg, RadioButton btn){
+        Log.e("judgeAnswer", "msg为"+msg+",datas(k)为"+datas.get(currentNumber).getChina());
+        if(msg.equals(getDatas(currentNumber).getChina())){
+            btn.setTextColor(Color.GREEN);
+
+        }else{
+            btn.setTextColor(Color.RED);
+            saveWrongData();
+            int wrong=sharedPreferences.getInt("wrong",0);
+            editor.putInt("wrong",wrong+1);
+            editor.putString("wrongId",","+getDatas(currentNumber).getId());
+            editor.commit();
+            Log.e("答错了----", "----------------------");
+        }
+    }
+    public void saveWrongData(){
+        String word = getDatas(currentNumber).getWord();       //获取答错这道题的单词
+        String english = getDatas(currentNumber).getEnglish();  //获取答错这道题的音标
+        String china = getDatas(currentNumber).getChina();       //获取答错这道题的汉语意思
+        String sign = getDatas(currentNumber).getSign();       //获取答错这道题的标记
+        CET4Entity data = new CET4Entity(Long.valueOf(dbDao.count()),
+                word, english, china, sign);
+        dbDao.insertOrReplace(data);                   //把这些字段存到数据库
+    }
+//实时更新时间
     public class TimeThread extends Thread {
         @Override
         public void run() {
@@ -239,52 +320,52 @@ public class MainActivity extends Activity implements SynthesizerListener,View.O
         }
     }
 
-    public void getDBData() {
-        datas = questionDao.queryBuilder().list();
-        int k = list.get(j);
-        mWord.setText(datas.get(k).getWord());
-        phonetic_symbols.setText(datas.get(k).getEnglish());
-        setOption(datas, k);
+    public CET4Entity getDatas(int order) {
+        int k = showOrder.get(order);
+        return datas.get(k);
     }
-
-    private void setOption(List<CET4Entity> datas, int k) {
+    public void setWord(int order){
+        mWord.setText(getDatas(order).getWord());
+        phonetic_symbols.setText(getDatas(order).getEnglish());
+    }
+    private void setOption(List<CET4Entity> datas) {
         Random r = new Random();
         int i = r.nextInt(3);
         if (i == 0) {
-            option_A.setText("A:" + datas.get(k).getChina());
-            if (k - 1 >= 0) {
-                option_B.setText("B:" + datas.get(k - 1).getChina());
+            option_A.setText("A:"+ getDatas(currentNumber).getChina());
+            if (currentNumber - 1 >= 0) {
+                option_B.setText("B:" + getDatas(currentNumber - 1).getChina());
             } else {
-                option_B.setText("B:" + datas.get(k + 2).getChina());
+                option_B.setText("B:" + getDatas(currentNumber + 2).getChina());
             }
-            if (k + 1 >= 20) {
-                option_C.setText("C:" + datas.get(k - 2).getChina());
+            if (currentNumber + 1 >= 20) {
+                option_C.setText("C:" + getDatas(currentNumber - 2).getChina());
             } else {
-                option_C.setText("C:" + datas.get(k + 1).getChina());
+                option_C.setText("C:" + getDatas(currentNumber + 1).getChina());
             }
         } else if (i == 1) {
-            option_B.setText("B:" + datas.get(k).getChina());
-            if (k - 1 >= 0) {
-                option_A.setText("A:" + datas.get(k - 1).getChina());
+            option_B.setText("B:" + getDatas(currentNumber).getChina());
+            if (currentNumber - 1 >= 0) {
+                option_A.setText("A:" + getDatas(currentNumber - 1).getChina());
             } else {
-                option_A.setText("A:" + datas.get(k + 2).getChina());
+                option_A.setText("A:" + getDatas(currentNumber + 2).getChina());
             }
-            if (k + 1 >= 20) {
-                option_C.setText("C:" + datas.get(k - 2).getChina());
+            if (currentNumber + 1 >= 20) {
+                option_C.setText("C:" + getDatas(currentNumber - 2).getChina());
             } else {
-                option_C.setText("C:" + datas.get(k + 1).getChina());
+                option_C.setText("C:" + getDatas(currentNumber + 1).getChina());
             }
         } else {
-            option_C.setText("C:" + datas.get(k).getChina());
-            if (k - 1 >= 0) {
-                option_B.setText("B:" + datas.get(k - 1).getChina());
+            option_C.setText("C:" + getDatas(currentNumber).getChina());
+            if (currentNumber - 1 >= 0) {
+                option_B.setText("B:" + getDatas(currentNumber - 1).getChina());
             } else {
-                option_B.setText("B:" + datas.get(k + 2).getChina());
+                option_B.setText("B:" + getDatas(currentNumber + 2).getChina());
             }
-            if (k + 1 >= 20) {
-                option_A.setText("A:" + datas.get(k - 2).getChina());
+            if (currentNumber + 1 >= 20) {
+                option_A.setText("A:" + getDatas(currentNumber - 2).getChina());
             } else {
-                option_A.setText("A:" + datas.get(k + 1).getChina());
+                option_A.setText("A:" + getDatas(currentNumber + 1).getChina());
             }
         }
     }
